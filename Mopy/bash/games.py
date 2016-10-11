@@ -648,6 +648,58 @@ class TextfileGame(Game):
 
 class AsteriskGame(Game):
 
+    def load_order_changed(self): return self._plugins_txt_modified()
+
+    def _cached_or_fetch(self, cached_load_order, cached_active):
+        # read the file once
+        return self._fetch_load_order(cached_load_order, cached_active)
+
+    @staticmethod
+    def _must_update_active(deleted, reordered): return True
+
+    # Abstract overrides ------------------------------------------------------
+    def _fetch_load_order(self, cached_load_order, cached_active):
+        """Read data from plugins.txt file. If plugins.txt does not exist
+        create it. Discards information read if cached is passed in."""
+        exists = self.plugins_txt_path.exists()
+        active, lo = self._parse_modfile(self.plugins_txt_path) # empty if not exists
+        lo, active = (lo if cached_load_order is None else cached_load_order,
+                      active if cached_active is None else cached_active)
+        if not exists:
+            self._write_plugins_txt(lo, active)
+            bolt.deprint(u'Created %s' % self.plugins_txt_path)
+        return list(lo), list(active)
+
+    def _persist_load_order(self, lord, active):
+        assert active # must at least contain the master esm for these games
+        self._write_plugins_txt(lord, active)
+
+    def _persist_active_plugins(self, active, lord):
+        self._persist_load_order(lord, active)
+
+    def _save_fixed_load_order(self, removed, added, reordered, fixed_active,
+                               lo, active):
+        if fixed_active: return # plugins.txt already saved
+        if removed or added or reordered: self._persist_load_order(lo, active)
+
+    def _persist_if_changed(self, active, lord, previous_active,
+                            previous_lord):
+        if (previous_lord is None or previous_lord != lord) or (
+                previous_active is None or previous_active != active):
+            self._persist_load_order(lord, active)
+
+    # Modfiles parsing overrides ----------------------------------------------
+    def _parse_modfile(self, path):
+        if not path.exists(): return [], []
+        acti, lo = _parse_plugins_txt_(path, self.mod_infos, _star=True)
+        return acti, lo
+
+    def _write_modfile(self, path, lord, active):
+        _write_plugins_txt_(path, lord, active, _star=True)
+
+# AsteriskGame overrides
+class Fallout4(AsteriskGame):
+
     must_be_active_if_present = (bolt.GPath(u'DLCRobot.esm'),
                                  bolt.GPath(u'DLCworkshop01.esm'),
                                  bolt.GPath(u'DLCCoast.esm'),
@@ -655,118 +707,21 @@ class AsteriskGame(Game):
                                  bolt.GPath(u'DLCWorkshop03.esm'),
                                  bolt.GPath(u'DLCNukaWorld.esm'),)
 
-    def load_order_changed(self): return self._plugins_txt_modified()
-
-    def _cached_or_fetch(self, cached_load_order, cached_active):
-        # read the file once
-        return self._fetch_load_order(cached_load_order, cached_active)
-
-    @staticmethod
-    def _must_update_active(deleted, reordered): return True
-
-    # Abstract overrides ------------------------------------------------------
-    def _fetch_load_order(self, cached_load_order, cached_active):
-        """Read data from plugins.txt file. If plugins.txt does not exist
-        create it. Discards information read if cached is passed in."""
-        exists = self.plugins_txt_path.exists()
-        active, lo = self._parse_modfile(self.plugins_txt_path) # empty if not exists
-        lo, active = (lo if cached_load_order is None else cached_load_order,
-                      active if cached_active is None else cached_active)
-        if not exists:
-            self._write_plugins_txt(lo, active)
-            bolt.deprint(u'Created %s' % self.plugins_txt_path)
-        return list(lo), list(active)
-
-    def _persist_load_order(self, lord, active):
-        assert active # must at least contain Fallout4.esm
-        self._write_plugins_txt(lord, active)
-
-    def _persist_active_plugins(self, active, lord):
-        self._persist_load_order(lord, active)
-
-    def _save_fixed_load_order(self, removed, added, reordered, fixed_active,
-                               lo, active):
-        if fixed_active: return # plugins.txt already saved
-        if removed or added or reordered: self._persist_load_order(lo, active)
-
-    def _persist_if_changed(self, active, lord, previous_active,
-                            previous_lord):
-        if (previous_lord is None or previous_lord != lord) or (
-                previous_active is None or previous_active != active):
-            self._persist_load_order(lord, active)
-
-    # Modfiles parsing overrides ----------------------------------------------
-    def _parse_modfile(self, path):
-        if not path.exists(): return [], []
-        acti, lo = _parse_plugins_txt_(path, self.mod_infos, _star=True)
-        return acti, lo
-
-    def _write_modfile(self, path, lord, active):
-        _write_plugins_txt_(path, lord, active, _star=True)
-
-class AsteriskGameSSE(Game):
+class SkyrimSE(AsteriskGame):
 
     must_be_active_if_present = (bolt.GPath(u'Update.esm'),
                                  bolt.GPath(u'Dawnguard.esm'),
                                  bolt.GPath(u'Hearthfires.esm'),
                                  bolt.GPath(u'Dragonborn.esm'),)
 
-    def load_order_changed(self): return self._plugins_txt_modified()
-
-    def _cached_or_fetch(self, cached_load_order, cached_active):
-        # read the file once
-        return self._fetch_load_order(cached_load_order, cached_active)
-
-    @staticmethod
-    def _must_update_active(deleted, reordered): return True
-
-    # Abstract overrides ------------------------------------------------------
-    def _fetch_load_order(self, cached_load_order, cached_active):
-        """Read data from plugins.txt file. If plugins.txt does not exist
-        create it. Discards information read if cached is passed in."""
-        exists = self.plugins_txt_path.exists()
-        active, lo = self._parse_modfile(self.plugins_txt_path) # empty if not exists
-        lo, active = (lo if cached_load_order is None else cached_load_order,
-                      active if cached_active is None else cached_active)
-        if not exists:
-            self._write_plugins_txt(lo, active)
-            bolt.deprint(u'Created %s' % self.plugins_txt_path)
-        return list(lo), list(active)
-
-    def _persist_load_order(self, lord, active):
-        assert active # must at least contain Skyrim.esm
-        self._write_plugins_txt(lord, active)
-
-    def _persist_active_plugins(self, active, lord):
-        self._persist_load_order(lord, active)
-
-    def _save_fixed_load_order(self, removed, added, reordered, fixed_active,
-                               lo, active):
-        if fixed_active: return # plugins.txt already saved
-        if removed or added or reordered: self._persist_load_order(lo, active)
-
-    def _persist_if_changed(self, active, lord, previous_active,
-                            previous_lord):
-        if (previous_lord is None or previous_lord != lord) or (
-                previous_active is None or previous_active != active):
-            self._persist_load_order(lord, active)
-
-    # Modfiles parsing overrides ----------------------------------------------
-    def _parse_modfile(self, path):
-        if not path.exists(): return [], []
-        acti, lo = _parse_plugins_txt_(path, self.mod_infos, _star=True)
-        return acti, lo
-
-    def _write_modfile(self, path, lord, active):
-        _write_plugins_txt_(path, lord, active, _star=True)
-
+# Game factory
 def game_factory(name, mod_infos, plugins_txt_path, loadorder_txt_path=None):
     if name == u'Skyrim':
         return TextfileGame(mod_infos, plugins_txt_path, loadorder_txt_path)
     elif name == u'Skyrim Special Edition':
-        return AsteriskGameSSE(mod_infos, plugins_txt_path)
+        return SkyrimSE(mod_infos, plugins_txt_path)
     elif name == u'Fallout4':
-        return AsteriskGame(mod_infos, plugins_txt_path)
+        return Fallout4(mod_infos, plugins_txt_path)
     else:
         return TimestampGame(mod_infos, plugins_txt_path)
 
