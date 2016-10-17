@@ -63,11 +63,11 @@ class MreMato(MelRecord):
     class MelMatoData(MelStruct):
         """Handle older truncated DATA for MATO subrecord."""
         def loadData(self, record, ins, sub_type, size, readId):
-            if size == 48:
+            if size == 52:
                 MelStruct.loadData(self, record, ins, sub_type, size, readId)
                 return
             elif size == 28:
-                unpacked = ins.unpack('fffffff',size,readId)
+                unpacked = ins.unpack('7f',size,readId)
             else:
                 raise ModSizeError(record.inName,readId,48,size,True)
             unpacked += self.defaults[len(unpacked):]
@@ -83,13 +83,98 @@ class MreMato(MelRecord):
         MelGroups('wordsOfPower',
             MelBase('DNAM','propertyData',),
             ),
-        MelMatoData('DATA','11fIB3B','falloffScale','falloffBias','noiseUVScale',
-                    'materialUVScale','projectionVectorX','projectionVectorY',
-                    'projectionVectorZ','normalDampener',
-                    'singlePassColor','singlePassColor',
-                    'singlePassColor',(MatoTypeFlags,'flags',0L),
+        MelMatoData('DATA','11fIB3s','falloffScale','falloffBias',
+                    'noiseUVScale','materialUVScale','projectionVectorX',
+                    'projectionVectorY','projectionVectorZ','normalDampener',
+                    'singlePassColorRed','singlePassColorGreen',
+                    'singlePassColorBlue',
+                    (MatoTypeFlags,'singlePassFlags',0L),
                     (MatoSnowFlags,'snowflags',0L),'unkMato1'),
     )
+    __slots__ = MelRecord.__slots__ + melSet.getSlotsUsed()
+
+#------------------------------------------------------------------------------
+class MreMovt(MelRecord):
+    """Movt Item"""
+    classType = 'MOVT'
+    class MelMovtSped(MelStruct):
+        """Handle older truncated SPED for MOVT subrecord."""
+        def loadData(self, record, ins, sub_type, size, readId):
+            if size == 44:
+                MelStruct.loadData(self, record, ins, sub_type, size, readId)
+                return
+            elif size == 40:
+                raise ModSizeError(record.inName,readId,44,size,True,oldSkyrim='True')
+            else:
+                raise ModSizeError(record.inName,readId,44,size,True)
+            unpacked += self.defaults[len(unpacked):]
+            setter = record.__setattr__
+            for attr,value,action in zip(self.attrs,unpacked,self.actions):
+                if callable(action): value = action(value)
+                setter(attr,value)
+            if self._debug: print unpacked
+
+    melSet = MelSet(
+        MelString('EDID','eid'),
+        MelString('MNAM','mnam_n'),
+        MelMovtSped('SPED','11f','leftWalk','leftRun','rightWalk','rightRun',
+                  'forwardWalk','forwardRun','backWalk','backRun',
+                  'rotateInPlaceWalk','rotateInPlaceRun',
+                  'rotateWhileMovingRun'),
+        MelOptStruct('INAM','3f','directional','movementSpeed','rotationSpeed'),
+        )
+    __slots__ = MelRecord.__slots__ + melSet.getSlotsUsed()
+
+#------------------------------------------------------------------------------
+    # DATA has wbEnum in TES5Edit
+    # Assinged as 'type' in MelSpgdData
+    # 'Rain',
+    # 'Snow',
+class MelSpgdData(MelStruct):
+    def __init__(self, subType='DATA'):
+        MelStruct.__init__(self, subType, '=7f4If',
+                           'gravityVelocity','rotationVelocity','particleSizeX',
+                           'particleSizeY','centerOffsetMin','centerOffsetMax',
+                           'initialRotationRange','numSubtexturesX',
+                           'numSubtexturesY','type', ('boxSize',0),
+                           ('particleDensity',0),
+                           )
+
+
+    def loadData(self, record, ins, sub_type, size, readId):
+        """Reads data from ins into record attribute."""
+        if size == 40:
+            # 40 Bytes for legacy data post Skyrim 1.5 DATA is always 48 bytes
+            # fffffffIIIIf
+            # Type is an Enum 0 = Rain; 1 = Snow
+            unpacked = ins.unpack('=7f3I',size,readId) + (0,0,)
+            setter = record.__setattr__
+            for attr,value,action in zip(self.attrs,unpacked,self.actions):
+                if action: value = action(value)
+                setter(attr,value)
+            if self._debug:
+                print u' ',zip(self.attrs,unpacked)
+                if len(unpacked) != len(self.attrs):
+                    print u' ',unpacked
+        elif size != 48:
+            raise ModSizeError(record.inName,readId,48,size,True)
+        else:
+            MelStruct.loadData(self, record, ins, sub_type, size, readId)
+
+class MreSpgd(MelRecord):
+    """Spgd Item"""
+    classType = 'SPGD'
+
+    SpgdDataFlags = Flags(0L,Flags.getNames(
+            (0, 'rain'),
+            (1, 'snow'),
+        ))
+
+    melSet = MelSet(
+        MelString('EDID','eid'),
+        MelBase('DATA', 'data_p'), # Form version 44 broken for now
+        MelString('ICON','icon'),
+        )
     __slots__ = MelRecord.__slots__ + melSet.getSlotsUsed()
 
 #------------------------------------------------------------------------------
@@ -101,12 +186,29 @@ class MreStat(MelRecord):
             (0, 'consideredSnow'),
         ))
 
+    class MelStatDnam(MelStruct):
+        """Handle older truncated DNAM for STAT subrecord."""
+        def loadData(self, record, ins, sub_type, size, readId):
+            if size == 12:
+                MelStruct.loadData(self, record, ins, sub_type, size, readId)
+                return
+            elif size == 8:
+                unpacked = ins.unpack('fI',size,readId)
+            else:
+                raise ModSizeError(record.inName,readId,12,size,True)
+            unpacked += self.defaults[len(unpacked):]
+            setter = record.__setattr__
+            for attr,value,action in zip(self.attrs,unpacked,self.actions):
+                if callable(action): value = action(value)
+                setter(attr,value)
+            if self._debug: print unpacked
+
     melSet = MelSet(
         MelString('EDID','eid'),
         MelBounds(),
         MelModel(),
-        MelStruct('DNAM','fI','maxAngle30to120',(FID,'material'),
-                  (LtexSnowFlags,'flags',0L),'unkStat1'),
+        MelStatDnam('DNAM','fIB3s','maxAngle30to120',(FID,'material'),
+                    (LtexSnowFlags,'snowflag',0L),('unkStat1',null3),),
         # Contains null-terminated mesh filename followed by random data
         # up to 260 bytes and repeats 4 times
         MelBase('MNAM','distantLOD'),
@@ -190,7 +292,132 @@ class MreWatr(MelRecord):
         MelString('NAM3','noiseTextureLayer2'),
         MelString('NAM4','noiseTextureLayer3'),
         MelString('NAM5','flowNormalsNoiseTexture'),
+        )
+    __slots__ = MelRecord.__slots__ + melSet.getSlotsUsed()
 
+#------------------------------------------------------------------------------
+class MreWeap(MelRecord):
+    """Weapon"""
+    classType = 'WEAP'
+
+    # 'On Death'
+    WeapFlags3 = Flags(0L,Flags.getNames(
+        (0, 'onDeath'),
+    ))
+
+    # {0x00000001}'Player Only',
+    # {0x00000002}'NPCs Use Ammo',
+    # {0x00000004}'No Jam After Reload (unused)',
+    # {0x00000008}'Unknown 4',
+    # {0x00000010}'Minor Crime',
+    # {0x00000020}'Range Fixed',
+    # {0x00000040}'Not Used in Normal Combat',
+    # {0x00000080}'Unknown 8',
+    # {0x00000100}'Don''t Use 3rd Person IS Anim (unused)',
+    # {0x00000200}'Unknown 10',
+    # {0x00000400}'Rumble - Alternate',
+    # {0x00000800}'Unknown 12',
+    # {0x00001000}'Non-hostile',
+    # {0x00002000}'Bound Weapon'
+    WeapFlags2 = Flags(0L,Flags.getNames(
+            (0, 'playerOnly'),
+            (1, 'nPCsUseAmmo'),
+            (2, 'noJamAfterReloadunused'),
+            (3, 'unknown4'),
+            (4, 'minorCrime'),
+            (5, 'rangeFixed'),
+            (6, 'notUsedinNormalCombat'),
+            (7, 'unknown8'),
+            (8, 'don'),
+            (9, 'unknown10'),
+            (10, 'rumbleAlternate'),
+            (11, 'unknown12'),
+            (12, 'nonhostile'),
+            (13, 'boundWeapon'),
+        ))
+
+    # {0x0001}'Ignores Normal Weapon Resistance',
+    # {0x0002}'Automatic (unused)',
+    # {0x0004}'Has Scope (unused)',
+    # {0x0008}'Can''t Drop',
+    # {0x0010}'Hide Backpack (unused)',
+    # {0x0020}'Embedded Weapon (unused)',
+    # {0x0040}'Don''t Use 1st Person IS Anim (unused)',
+    # {0x0080}'Non-playable'
+    WeapFlags1 = Flags(0L,Flags.getNames(
+            (0, 'ignoresNormalWeaponResistance'),
+            (1, 'automaticunused'),
+            (2, 'hasScopeunused'),
+            (3, 'can'),
+            (4, 'hideBackpackunused'),
+            (5, 'embeddedWeaponunused'),
+            (6, 'don'),
+            (7, 'nonplayable'),
+        ))
+
+    class MelWeapCrdt(MelStruct):
+        """Handle older truncated CRDT for WEAP subrecord."""
+        def loadData(self, record, ins, sub_type, size, readId):
+            if size == 24:
+                MelStruct.loadData(self, record, ins, sub_type, size, readId)
+                return
+            elif size == 16:
+                raise ModSizeError(record.inName,readId,24,size,True,oldSkyrim='True')
+            else:
+                raise ModSizeError(record.inName,readId,24,size,True)
+            unpacked += self.defaults[len(unpacked):]
+            setter = record.__setattr__
+            for attr,value,action in zip(self.attrs,unpacked,self.actions):
+                if callable(action): value = action(value)
+                setter(attr,value)
+            if self._debug: print unpacked
+
+    melSet = MelSet(
+        MelString('EDID','eid'),
+        MelVmad(),
+        MelBounds(),
+        MelLString('FULL','full'),
+        MelModel('model1','MODL'),
+        MelString('ICON','iconPath'),
+        MelString('MICO','smallIconPath'),
+        MelFid('EITM','enchantment',),
+        MelOptStruct('EAMT','H','enchantPoints'),
+        MelDestructible(),
+        MelFid('ETYP','equipmentType',),
+        MelFid('BIDS','blockBashImpactDataSet',),
+        MelFid('BAMT','alternateBlockMaterial',),
+        MelFid('YNAM','pickupSound',),
+        MelFid('ZNAM','dropSound',),
+        MelCountedFidList('KWDA', 'keywords', 'KSIZ', '<I'),
+        MelLString('DESC','description'),
+        MelModel('model2','MOD3'),
+        MelBase('NNAM','unused1'),
+        MelFid('INAM','impactDataSet',),
+        MelFid('WNAM','firstPersonModelObject',),
+        MelFid('SNAM','attackSound',),
+        MelFid('XNAM','attackSound2D',),
+        MelFid('NAM7','attackLoopSound',),
+        MelFid('TNAM','attackFailSound',),
+        MelFid('UNAM','idleSound',),
+        MelFid('NAM9','equipSound',),
+        MelFid('NAM8','unequipSound',),
+        MelStruct('DATA','IfH','value','weight','damage',),
+        MelStruct('DNAM','B3s2fH2sf4s4B2f2I5f12si8si4sf','animationType',
+                  ('dnamUnk1',null3),'speed','reach',
+                  (WeapFlags1,'dnamFlags1',None),('dnamUnk2',null2),'sightFOV',
+                  ('dnamUnk3',null4),'baseVATSToHitChance','attackAnimation',
+                  'numProjectiles','embeddedWeaponAVunused','minRange',
+                  'maxRange','onHit',(WeapFlags2,'dnamFlags2',None),
+                  'animationAttackMultiplier',('dnamUnk4',0.0),
+                  'rumbleLeftMotorStrength','rumbleRightMotorStrength',
+                  'rumbleDuration',('dnamUnk5',null4+null4+null4),'skill',
+                  ('dnamUnk6',null4+null4),'resist',('dnamUnk7',null4),'stagger',),
+        MelWeapCrdt('CRDT','H2sfB3s4sI4s','critDamage',('crdtUnk1',null2),
+                  'criticalMultiplier',(WeapFlags3,'criticalFlags',0L),
+                  ('crdtUnk2',null3),('crdtUnk3',null4),
+                  (FID,'criticalEffect',None),('crdtUnk4',null4),),
+        MelStruct('VNAM','I','detectionSoundLevel'),
+        MelFid('CNAM','template',),
         )
     __slots__ = MelRecord.__slots__ + melSet.getSlotsUsed()
 
