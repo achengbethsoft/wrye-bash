@@ -383,6 +383,8 @@ class PluggyFile:
 
 #------------------------------------------------------------------------------
 class ObseFile:
+    # Where is the code to get the name of the masters in the save file
+    # Currently the cofile is not altered
     """Represents a .obse cofile for saves. Used for editing masters list."""
     def __init__(self,path):
         self.path = path
@@ -405,8 +407,8 @@ class ObseFile:
             def unpack(format,size):
                 return struct.unpack(format,ins.read(size))
             self.signature = ins.read(4)
-            if self.signature != 'OBSE':
-                raise FileError(self.name,u'File signature != "OBSE"')
+            if self.signature != bush.game.se.shortName:
+                raise FileError(self.name,u'File signature != ' + bush.game.se.shortName)
             self.formatVersion,self.obseVersion,self.obseMinorVersion,self.oblivionVersion, = unpack('IHHI',12)
             # if self.formatVersion < X:
             #   raise FileError(self.name,'Unsupported file version: %I' % self.formatVersion)
@@ -437,7 +439,7 @@ class ObseFile:
             #--Save
             def pack(format,*args):
                 buff.write(struct.pack(format,*args))
-            buff.write('OBSE')
+            buff.write(bush.game.se.shortName)
             pack('=I',self.formatVersion)
             pack('=H',self.obseVersion)
             pack('=H',self.obseMinorVersion)
@@ -467,6 +469,8 @@ class ObseFile:
         path.mtime = mtime
 
     def mapMasters(self,masterMap):
+        # Where is the code to get the name of the masters in the save file
+        # Currently the cofile is not altered
         """Update plugin names according to masterMap."""
         if not self.valid: raise FileError(self.name,u"File not initialized.")
         newPlugins = []
