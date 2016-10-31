@@ -352,7 +352,7 @@ allTags = sorted((
 
 #--Gui patcher classes available when building a Bashed Patch
 patchers = (
-    u'AliasesPatcher', u'CellImporter', u'GmstTweaker', u'GraphicsPatcher',
+    u'CellImporter', u'GraphicsPatcher', u'GmstTweaker',
     u'ImportInventory', u'ListsMerger', u'PatchMerger', u'SoundPatcher',
     u'StatsPatcher', u'NamesPatcher',
     )
